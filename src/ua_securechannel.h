@@ -98,10 +98,13 @@ struct UA_SecureChannel {
     UA_MessageQueue messages;
 };
 
+void UA_SecureChannel_init(UA_SecureChannel *channel);
+
 UA_StatusCode
-UA_SecureChannel_init(UA_SecureChannel *channel,
-                      const UA_SecurityPolicy *securityPolicy,
-                      const UA_ByteString *remoteCertificate);
+UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
+                                   const UA_SecurityPolicy *securityPolicy,
+                                   const UA_ByteString *remoteCertificate);
+
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 /* Generates new keys and sets them in the channel context */
