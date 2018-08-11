@@ -317,7 +317,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
     /* Allocate the message buffer */
     UA_ByteString buf = UA_BYTESTRING_NULL;
     UA_StatusCode retval =
-        connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &buf);
+        connection->getSendBuffer(connection, connection->config.sendBufferSize, &buf);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -503,11 +503,11 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     size_t bodyLength = (uintptr_t)buf_body_end - (uintptr_t)buf_body_start;
     mc->messageSizeSoFar += bodyLength;
     mc->chunksSoFar++;
-    if(mc->messageSizeSoFar > connection->remoteConf.maxMessageSize &&
-       connection->remoteConf.maxMessageSize != 0)
+    if(mc->messageSizeSoFar > connection->config.maxMessageSize &&
+       connection->config.maxMessageSize != 0)
         res = UA_STATUSCODE_BADRESPONSETOOLARGE;
-    if(mc->chunksSoFar > connection->remoteConf.maxChunkCount &&
-       connection->remoteConf.maxChunkCount != 0)
+    if(mc->chunksSoFar > connection->config.maxChunkCount &&
+       connection->config.maxChunkCount != 0)
         res = UA_STATUSCODE_BADRESPONSETOOLARGE;
     if(res != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(channel->connection, &mc->messageBuffer);
@@ -616,7 +616,7 @@ sendSymmetricEncodingCallback(void *data, UA_Byte **buf_pos, const UA_Byte **buf
 
     /* Set a new buffer for the next chunk */
     UA_Connection *connection = mc->channel->connection;
-    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
+    retval = connection->getSendBuffer(connection, connection->config.sendBufferSize,
                                        &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -647,13 +647,9 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
     mc->messageBuffer = UA_BYTESTRING_NULL;
     mc->messageType = messageType;
 
-    /* Minimum required size */
-    if(connection->localConf.sendBufferSize <= UA_SECURE_MESSAGE_HEADER_LENGTH)
-        return UA_STATUSCODE_BADRESPONSETOOLARGE;
-
     /* Allocate the message buffer */
     UA_StatusCode retval =
-        connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
+        connection->getSendBuffer(connection, connection->config.sendBufferSize,
                                   &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

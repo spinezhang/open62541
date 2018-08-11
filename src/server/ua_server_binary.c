@@ -278,35 +278,32 @@ processHEL(UA_Server *server, UA_Connection *connection,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Parameterize the connection */
-    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount; /* zero -> unlimited */
-    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize; /* zero -> unlimited */
-    connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
-    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
-    if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
-        connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
-    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
-    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
-        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
+    /* Currently not checked */
     UA_String_deleteMembers(&helloMessage.endpointUrl);
 
-    if(connection->remoteConf.recvBufferSize == 0) {
+    /* TODO: Use the config of the exact NetworkLayer */
+    if(server->config.networkLayersSize == 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    const UA_ConnectionConfig *localConfig = &server->config.networkLayers[0].localConnectionConfig;
+
+    /* Parameterize the connection */
+    UA_ConnectionConfig remoteConfig;
+    remoteConfig.protocolVersion = helloMessage.protocolVersion;
+    remoteConfig.sendBufferSize = helloMessage.sendBufferSize;
+    remoteConfig.recvBufferSize = helloMessage.receiveBufferSize;
+    remoteConfig.maxMessageSize = helloMessage.maxMessageSize;
+    remoteConfig.maxChunkCount = helloMessage.maxChunkCount;
+    retval = UA_Connection_processHELACK(connection, localConfig, &remoteConfig);
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | Remote end indicated a receive buffer size of 0. "
-                    "Not able to send any messages.",
+                    "Connection %i | Error during the HEL/ACK handshake",
                     connection->sockfd);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return retval;
     }
 
-    connection->state = UA_CONNECTION_ESTABLISHED;
-
     /* Build acknowledge response */
-    UA_TcpAcknowledgeMessage ackMessage;
-    ackMessage.protocolVersion = connection->localConf.protocolVersion;
-    ackMessage.receiveBufferSize = connection->localConf.recvBufferSize;
-    ackMessage.sendBufferSize = connection->localConf.sendBufferSize;
-    ackMessage.maxMessageSize = connection->localConf.maxMessageSize;
-    ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
+    UA_TcpAcknowledgeMessage ackMessage =
+        *(const UA_TcpAcknowledgeMessage*)localConfig; /* Same struct layout.. */
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
@@ -314,8 +311,7 @@ processHEL(UA_Server *server, UA_Connection *connection,
     /* Get the send buffer from the network layer */
     UA_ByteString ack_msg;
     UA_ByteString_init(&ack_msg);
-    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
-                                       &ack_msg);
+    retval = connection->getSendBuffer(connection, connection->config.sendBufferSize, &ack_msg);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
